@@ -1,77 +1,50 @@
-from rest_framework import serializers
+from rest_framework  import serializers
 from .models import User, OTP
-import re
 
+from rest_framework import serializers
 
 class RegistrationSerializer(serializers.ModelSerializer):
     confirm_password = serializers.CharField(min_length=8, write_only=True)
-    password = serializers.CharField(min_length=8, write_only=True)
-
+    #password = serializers.CharField(min_length=8, write_only=True, required=True)
+    
     class Meta:
         model = User
-        fields = ['username', 'first_name', 'last_name', 'email', 'password', 'confirm_password', 'birth_date']
+        fields = ['first_name', 'last_name', 'username', 'email', 'password', 'confirm_password']
         extra_kwargs = {'password': {'write_only': True}}
-        
-    # def validate_username(self, value):
-    #     if User.objects.filter(username=value).exists():
-    #         raise serializers.ValidationError("Username already taken.")
-    #     return value
 
+
+    def validate_username(self, value):
+        if User.objects.filter(username=value).exists():
+            raise serializers.ValidationError("Username already exists.")
+        return value
+    
     def validate_email(self, value):
         if User.objects.filter(email=value).exists():
             raise serializers.ValidationError("Email already exists.")
         return value
 
+    def validate(self, data):
+        password = data.get('password')
+        confirm_password = data.pop('confirm_password', None)
 
-    def validate(self, value):
-        password = value.get('password')
-        confirm_password = value.pop('confirm_password', None)
-
-        if not password or not confirm_password:
-            raise serializers.ValidationError("Both password and confirm password are required.")
-        if password != confirm_password:
+        if password and password != confirm_password:
             raise serializers.ValidationError("Passwords do not match.")
-
-        if len(password) < 8:
-            raise serializers.ValidationError("Password should be at least 8 characters long.")
-        if not re.search("[a-z]", password):
-            raise serializers.ValidationError("Password should include at least one lowercase letter.")
-        if not re.search("[A-Z]", password):
-            raise serializers.ValidationError("Password should include at least one uppercase letter.")
-        if not re.search("[0-9]", password):
-            raise serializers.ValidationError("Password should include at least one number.")
-        if not re.search("[!@#$%^&*(),.?\":{}|<>]", password):
-            raise serializers.ValidationError("Password should include at least one special character (!@#$%^&*(),.?\":{}|<>).")
-
-        return value
+        
+        return data
 
     def create(self, validated_data):
         validated_data.pop('confirm_password', None)
-
-        # Extract username, email, and password from validated_data
-        username = validated_data.pop('username', None)
-        email = validated_data.pop('email', None)
-        password = validated_data.pop('password', None)
-
-        # Ensure that username, email, and password are provided
-        if not username or not email or not password:
-            raise serializers.ValidationError("Username, email, and password are required.")
-
-        # Call create_user with username, email, password, and other extra fields
-        user = User.objects.create_user(username, email, password, **validated_data)
-        return user
-
-
-class VerifyEmailSerializer(serializers.Serializer):
+        return User.objects.create_user(**validated_data)
+    
+class VerifyEmailSerializer(serializers.ModelSerializer):
     email = serializers.EmailField()
-    otp = serializers.CharField(max_length=6)
 
     class Meta:
         model = OTP
         fields = ['otp', 'email']
 
 
-class ResendVerifyEmailSerializer(serializers.Serializer):
+class ResendVerifyEmailSerializer(serializers.ModelSerializer):
     email = serializers.EmailField()
 
     class Meta:
@@ -79,15 +52,29 @@ class ResendVerifyEmailSerializer(serializers.Serializer):
         fields = ['email']
 
 
-class ProfileSerializer(serializers.ModelSerializer):
+class UserLogInAPIViewSerializer(serializers.ModelSerializer):
+    email = serializers.EmailField()
+
     class Meta:
         model = User
-        fields = ['username', 'profile_picture']
-        read_only_fields = ('username', 'profile_picture')
+        fields = ['password', 'email']
 
 
 class UserSerializer(serializers.ModelSerializer):
-        class Meta:
-            model = User
-            fields = ['first_name', 'last_name', 'username', 'phone_number', 'profile_picture',]
-            read_only_fields = ('email',)
+    class Meta:
+        model = User
+        fields = ['first_name', 'last_name', 'username', 'email','phone_number', 'bio', 'profile_picture']
+
+    
+    
+
+class ProfileSerializer(serializers.ModelSerializer):
+    interest = serializers.StringRelatedField(many=True)
+
+    class Meta:
+        model = User
+        fields = ['username', 'bio', 'profile_picture']
+        read_only_fields = ('username',  'rating', 'profile_picture')
+    
+    
+    

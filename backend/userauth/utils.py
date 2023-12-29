@@ -1,24 +1,21 @@
-from .tokenizer import token_generator
-from celery import shared_task
-from django.core.mail import send_mail
-import time
-from .models import User
-from .utils import token_generator
-from .models import OTP
+# import send email function
+from django.utils import timezone
+import string
+import random
 
-@shared_task(serializer='json', name="send_mail")
-def send_activation_email(user):
-    """Send account activation link to the user"""
-    user = User.objects.get(id=user)
-    activation_code = token_generator()
-    otp = OTP.objects.create(otp=activation_code, user=user)
-    otp.save()
-    message = f"Hello {user.username},\n\nPlease use the following code to activate your account: {activation_code}"
 
-    send_mail(
-        subject="Activate your account",
-        message=message,
-        from_email="mqnifestkelvin@gmail.com",
-        recipient_list=[user.email],
-        fail_silently=False,
-    )
+def token_generator(size=6, chars=string.ascii_uppercase + string.digits):
+    return ''.join(random.choice(chars) for _ in range(size))
+
+
+def checkOTPExpiration(otp):
+    """Check if the otp is expired or not"""
+    if otp:
+        now = timezone.now()
+        time_difference = now - otp.created_at
+        if time_difference.seconds > 300:
+            return False
+        else:
+            return True
+    else:
+        return False
