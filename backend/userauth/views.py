@@ -3,7 +3,7 @@ from django.shortcuts import render
 from rest_framework.views import APIView, status
 from .serializers import RegistrationSerializer, UserSerializer, VerifyEmailSerializer, UserLogInAPIViewSerializer
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework import generics
 from .models import User
 from rest_framework import authentication
@@ -20,8 +20,8 @@ from rest_framework.authtoken.models import Token
 
 class RegistrationAPIView(generics.CreateAPIView):
     serializer_class = RegistrationSerializer
+    permission_classes = [AllowAny]
 
-    
     def post(self, request):
         """ Register new user."""
         serializer = RegistrationSerializer(data=request.data)
@@ -41,7 +41,8 @@ class RegistrationAPIView(generics.CreateAPIView):
 
 class VerifyEmailAPIView(generics.CreateAPIView):
     serializer_class = VerifyEmailSerializer
-
+    permission_classes = [AllowAny]
+    
     def post(self, request, *args, **kwargs):
         data = request.data
         serializer =  self.serializer_class(data=data)
@@ -89,6 +90,7 @@ class VerifyEmailAPIView(generics.CreateAPIView):
 
 class ResendVerifyEmailAPIView(generics.CreateAPIView):
     serializer_class = VerifyEmailSerializer
+    permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
         data = request.data
@@ -154,6 +156,7 @@ class UserAPIView(generics.RetrieveUpdateDestroyAPIView):
     
 class UserLogInAPIView(generics.CreateAPIView):
     serializer_class = UserLogInAPIViewSerializer
+    permission_classes = [AllowAny]
 
     def post(self, request, *args, **kwargs):
         serializer = self.serializer_class(data=request.data, context={'request': request})
