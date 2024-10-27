@@ -45,9 +45,10 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt',
     'rest_framework.authtoken',
     'userauth',
-    'django_cron',
+    # 'django_cron',
     'corsheaders',
-    'django_celery_results',
+    # 'django_celery_results',
+    'medical_record',
 ]
 
 MIDDLEWARE = [
