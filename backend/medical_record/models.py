@@ -8,8 +8,11 @@ class MedicalRecord(models.Model):
     doctor_name = models.CharField(max_length=100)
     hospital_name = models.CharField(max_length=100)
     hospital_address = models.TextField()
-    dynamic_diagnosis = models.JSONField(default=dict, blank=True)
-    prescription =models.JSONField(default=dict, blank=True)
+    medical_history = models.JSONField(default=dict, blank=True)
+    vitals = models.JSONField(default=dict, blank=True)
+    current_visit_details = models.JSONField(default=dict, blank=True)
+    treatment_plan = models.JSONField(default=dict, blank=True)
+    referral_info = models.JSONField(default=dict, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -18,3 +21,16 @@ class MedicalRecord(models.Model):
 
     def __str__(self):
         return f'{self.user.username} - {self.date}'
+
+class PermissionRequest(models.Model):
+    doctor = models.ForeignKey(AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="requests_made")
+    patient = models.ForeignKey(AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="requests_received")
+    medical_record = models.ForeignKey(MedicalRecord, on_delete=models.CASCADE, related_name="permission_requests")
+    status = models.CharField(max_length=20, choices=[("pending", "Pending"), ("approved", "Approved"), ("denied", "Denied")], default="pending")
+    request_date = models.DateTimeField(auto_now_add=True)
+    response_date = models.DateTimeField(null=True, blank=True)
+
+    def __str__(self):
+        return f"Request from {self.doctor.username} to access {self.patient.username}'s record"
+
+
