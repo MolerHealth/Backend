@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from .models import MedicalRecord
+from .models import MedicalRecord, PermissionRequest
+from userauth.models import User
 
 class MedicalRecordSerializer(serializers.ModelSerializer):
     """
@@ -7,19 +8,8 @@ class MedicalRecordSerializer(serializers.ModelSerializer):
     """
     class Meta:
         model = MedicalRecord
-        fields = [
-            "id",
-            "user",
-            "date",
-            "doctor_name",
-            "hospital_name",
-            "hospital_address",
-            "dynamic_diagnosis",
-            "prescription",
-            "created_at",
-            "updated_at",
-        ]
-        read_only_fields = ["created_at", "updated_at",]
+        fields = '__all__'
+        read_only_fields = ["created_at", "updated_at", "User"]
 
     
 class MedicalRecordHistorySerializer(serializers.ModelSerializer):
@@ -33,20 +23,27 @@ class MedicalRecordHistorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = MedicalRecord.history.model  # Access the historical model created by Simple History
-        fields = [
-            "id",
-            "user",
-            "date",
-            "doctor_name",
-            "hospital_name",
-            "hospital_address",
-            "dynamic_diagnosis",
-            "prescription",
-            "created_at",
-            "updated_at",
-            "history_id",
-            "history_date",
-            "history_change_reason",
-            "history_user",
-        ]
+        fields = '__all__'
         read_only_fields = fields
+        
+        
+class PermissionRequestSerializer(serializers.ModelSerializer):
+    doctor = serializers.HiddenField(default=serializers.CurrentUserDefault())
+    patient = serializers.SlugRelatedField(
+        slug_field='email',
+        queryset=User.objects.all()
+    )
+    medical_record = serializers.PrimaryKeyRelatedField(
+        queryset=MedicalRecord.objects.all()
+    )
+
+    class Meta:
+        model = PermissionRequest
+        fields = '__all__'
+        read_only_fields = ["status", "request_date", "response_date"]
+
+class PermissionResponseSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PermissionRequest
+        fields = ["status"]
+
