@@ -1,179 +1,213 @@
-
-from django.shortcuts import render
-from rest_framework.views import APIView, status
-from .serializers import RegistrationSerializer, UserSerializer, VerifyEmailSerializer, UserLogInAPIViewSerializer
+from django.shortcuts import get_object_or_404
+from rest_framework import generics, status
+from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
-from rest_framework import generics
-from .models import User
-from rest_framework import authentication
-from rest_framework import permissions
-from .tasks import send_activation_email
-from .utils import checkOTPExpiration
-from .models import OTP
-from django.shortcuts import get_object_or_404
-from .utils import token_generator
-from django.contrib.auth import authenticate
-from rest_framework.authtoken.views import ObtainAuthToken
 from rest_framework.authtoken.models import Token
+from django.contrib.auth import authenticate
+
+from .models import User, OTP, Doctor, Patient
+from .serializers import (
+    RegistrationSerializer,
+    VerifyEmailSerializer,
+    ResendOTPSerializer,
+    UserProfileSerializer,
+    LoginSerializer,
+    DoctorProfileSerializer,
+    PatientProfileSerializer,
+)
 
 
+# Registration API View
 class RegistrationAPIView(generics.CreateAPIView):
     serializer_class = RegistrationSerializer
     permission_classes = [AllowAny]
 
     def post(self, request):
-        """ Register new user."""
-        serializer = RegistrationSerializer(data=request.data)
-
+        """Register a new user."""
+        serializer = self.get_serializer(data=request.data)
         if serializer.is_valid():
             user = serializer.save()
-            response_data = {
-                "message": "User registered successfully!",
-                "statusCode": status.HTTP_201_CREATED,
-                "data": serializer.data
-            }
-            send_activation_email.delay(user.id)  # Pass user's ID instead of the user object
-            return Response(response_data, status=status.HTTP_201_CREATED)
-        else:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
-
-class VerifyEmailAPIView(generics.CreateAPIView):
-    serializer_class = VerifyEmailSerializer
-    permission_classes = [AllowAny]
-    
-    def post(self, request, *args, **kwargs):
-        data = request.data
-        serializer =  self.serializer_class(data=data)
-
-        if serializer.is_valid():
-            otp = serializer.validated_data.get('otp')
-            email = serializer.validated_data.get('email')
-            if User.objects.filter(email=email).exists():
-                user = User.objects.get(email=email)
-            else:
-                response_data = {
-                "message": "User does not exist! Please register.",
-                "statusCode": status.HTTP_400_BAD_REQUEST,
-                }
-                return Response(response_data, status=status.HTTP_400_BAD_REQUEST)
-            if OTP.objects.filter(otp=otp).exists():
-                get_otp = OTP.objects.get(otp=otp)
-            else:
-                response_data = {
-                "message": "Invalid OTP! Please try again.",
-                "statusCode": status.HTTP_400_BAD_REQUEST,
-                }
-                return Response(response_data, status=status.HTTP_400_BAD_REQUEST)
-            if checkOTPExpiration(get_otp):
-                user.is_active = True
-                user.is_verified = True
-                user.save()
-                get_otp.delete()
-                response_data = {
-                "message": "User verified successfully!",
-                "statusCode": status.HTTP_200_OK,
-                }
-                return Response(response_data, status=status.HTTP_200_OK)
-            else:
-                get_otp.delete()
-                response_data = {
-                "message": "OTP expired!",
-                "statusCode": status.HTTP_400_BAD_REQUEST,
-                }
-                return Response(response_data, status=status.HTTP_400_BAD_REQUEST)
-        else:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-        
-
-
-class ResendVerifyEmailAPIView(generics.CreateAPIView):
-    serializer_class = VerifyEmailSerializer
-    permission_classes = [AllowAny]
-
-    def post(self, request, *args, **kwargs):
-        data = request.data
-        serializer =  self.serializer_class(data=data)
-
-        if serializer.is_valid():
-            email = serializer.validated_data.get('email')
-            user = get_object_or_404(User, email=email)
-            if user.is_verified:
-                response_data = {
-                "message": "User already verified!",
-                "statusCode": status.HTTP_400_BAD_REQUEST,
-                }
-                return Response(response_data, status=status.HTTP_400_BAD_REQUEST)
-            else:
-                send_activation_email.delay(user)
-                response_data = {
-                    "message": "OTP sent successfully!",
-                    "statusCode": status.HTTP_200_OK,
-                    }
-                return Response(response_data, status=status.HTTP_200_OK)
-        else:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-class UserAPIView(generics.RetrieveUpdateDestroyAPIView):
-    permission_classes = (IsAuthenticated,)
-    serializer_class = UserSerializer
-
-    def get_object(self):
-        return self.request.user
-    
-    def get(self, request, *args, **kwargs):
-        serializer = UserSerializer(self.get_object())
-        response_data = {
-            "message": "User details fetched successfully!",
-            "statusCode": status.HTTP_200_OK,
-            "data": serializer.data
-        }
-        return Response(response_data, status=status.HTTP_200_OK)
-    
-    def put(self, request, *args, **kwargs):
-        serializer = UserSerializer(self.get_object(), data=request.data, partial=True)
-
-        if serializer.is_valid():
-            serializer.save()
-            response_data = {
-                "message": "User details updated successfully!",
-                "statusCode": status.HTTP_200_OK,
-                "data": serializer.data
-            }
-            return Response(response_data, status=status.HTTP_200_OK)
-        else:
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-
-    def delete(self, request, *args, **kwargs):
-        self.get_object().delete()
-        response_data = {
-            "message": "User deleted successfully!",
-            "statusCode": status.HTTP_200_OK,
-        }
-        return Response(response_data, status=status.HTTP_200_OK)
-    
-class UserLogInAPIView(generics.CreateAPIView):
-    serializer_class = UserLogInAPIViewSerializer
-    permission_classes = [AllowAny]
-
-    def post(self, request, *args, **kwargs):
-        serializer = self.serializer_class(data=request.data, context={'request': request})
-        if serializer.is_valid():
-            email = serializer.validated_data['email']  # 'username' is used by default by ObtainAuthToken
-            password = serializer.validated_data['password']
-            user = authenticate(request, username=email, password=password)
-            if user:
-                token, created = Token.objects.get_or_create(user=user)
-                return Response({'token': token.key}, status=status.HTTP_200_OK)
-            else:
-                return Response({'error': 'Invalid Credentials'}, status=status.HTTP_401_UNAUTHORIZED)
+            # Send activation email with OTP (asynchronously)
+            send_activation_email.delay(user.id)
+            return Response(
+                {
+                    "message": "User registered successfully!",
+                    "statusCode": status.HTTP_201_CREATED,
+                    "data": serializer.data,
+                },
+                status=status.HTTP_201_CREATED,
+            )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+# Verify Email API View
+class VerifyEmailAPIView(generics.CreateAPIView):
+    serializer_class = VerifyEmailSerializer
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        """Verify a user's email using an OTP."""
+        serializer = self.serializer_class(data=request.data)
+        if serializer.is_valid():
+            otp = serializer.validated_data.get('otp')
+            email = serializer.validated_data.get('email')
+
+            user = get_object_or_404(User, email=email)
+            otp_instance = get_object_or_404(OTP, user=user, otp=otp)
+
+            # Check OTP expiration
+            if checkOTPExpiration(otp_instance):
+                user.is_active = True
+                user.save()
+                otp_instance.delete()
+                return Response(
+                    {"message": "Email verified successfully!"},
+                    status=status.HTTP_200_OK,
+                )
+            else:
+                otp_instance.delete()
+                return Response(
+                    {"error": "OTP expired."}, status=status.HTTP_400_BAD_REQUEST
+                )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+# Resend Verification Email API View
+class ResendVerifyEmailAPIView(APIView):
+    serializer_class = ResendOTPSerializer
+    permission_classes = [AllowAny]
+
+    def post(self, request, *args, **kwargs):
+        """Resend a verification email with a new OTP."""
+        serializer = self.serializer_class(data=request.data)
+        if serializer.is_valid():
+            email = serializer.validated_data.get('email')
+            user = get_object_or_404(User, email=email)
+
+            if user.is_active:
+                return Response(
+                    {"message": "User already verified!"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            # Resend the activation email
+            send_activation_email.delay(user.id)
+            return Response(
+                {"message": "Verification email resent successfully!"},
+                status=status.HTTP_200_OK,
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+# Login API View
+class UserLogInAPIView(generics.CreateAPIView):
+    serializer_class = LoginSerializer
+    permission_classes = [AllowAny]
 
+    def post(self, request, *args, **kwargs):
+        """Log in a user and return an authentication token."""
+        serializer = self.serializer_class(data=request.data)
+        if serializer.is_valid():
+            email = serializer.validated_data.get('email')
+            password = serializer.validated_data.get('password')
+
+            user = authenticate(request, username=email, password=password)
+            if user:
+                token, _ = Token.objects.get_or_create(user=user)
+                return Response(
+                    {"token": token.key, "message": "Login successful!"},
+                    status=status.HTTP_200_OK,
+                )
+            else:
+                return Response(
+                    {"error": "Invalid credentials."},
+                    status=status.HTTP_401_UNAUTHORIZED,
+                )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+# User Profile API View
+class UserAPIView(generics.RetrieveUpdateDestroyAPIView):
+    permission_classes = [IsAuthenticated]
+    serializer_class = UserProfileSerializer
+
+    def get_object(self):
+        return self.request.user
+
+    def get(self, request, *args, **kwargs):
+        """Retrieve user details."""
+        serializer = self.get_serializer(self.get_object())
+        return Response(
+            {
+                "message": "User details fetched successfully!",
+                "statusCode": status.HTTP_200_OK,
+                "data": serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def put(self, request, *args, **kwargs):
+        """Update user details."""
+        serializer = self.get_serializer(
+            self.get_object(), data=request.data, partial=True
+        )
+        if serializer.is_valid():
+            serializer.save()
+            return Response(
+                {
+                    "message": "User details updated successfully!",
+                    "statusCode": status.HTTP_200_OK,
+                    "data": serializer.data,
+                },
+                status=status.HTTP_200_OK,
+            )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, *args, **kwargs):
+        """Delete a user account."""
+        self.get_object().delete()
+        return Response(
+            {"message": "User deleted successfully!", "statusCode": status.HTTP_200_OK},
+            status=status.HTTP_200_OK,
+        )
+
+
+# Doctor Profile API View
+class DoctorProfileAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        """Retrieve the profile of a doctor."""
+        if not request.user.is_doctor:
+            return Response(
+                {"error": "You are not a doctor."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        doctor_profile = get_object_or_404(Doctor, user=request.user)
+        serializer = DoctorProfileSerializer(doctor_profile)
+        return Response(
+            {"data": serializer.data, "message": "Doctor profile retrieved!"},
+            status=status.HTTP_200_OK,
+        )
+
+
+# Patient Profile API View
+class PatientProfileAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request, *args, **kwargs):
+        """Retrieve the profile of a patient."""
+        if not request.user.is_patient:
+            return Response(
+                {"error": "You are not a patient."},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        patient_profile = get_object_or_404(Patient, user=request.user)
+        serializer = PatientProfileSerializer(patient_profile)
+        return Response(
+            {"data": serializer.data, "message": "Patient profile retrieved!"},
+            status=status.HTTP_200_OK,
+        )
