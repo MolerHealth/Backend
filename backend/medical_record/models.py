@@ -1,10 +1,11 @@
 from django.db import models
 from backend.settings import AUTH_USER_MODEL
 from simple_history.models import HistoricalRecords
+from django.db.models import Q
 
 class MedicalRecord(models.Model):
     user = models.ForeignKey(AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='medical_records')
-    date = models.DateField()
+    date = models.DateField(auto_now=True)
     doctor_name = models.CharField(max_length=100)
     hospital_name = models.CharField(max_length=100)
     hospital_address = models.TextField()
@@ -29,8 +30,13 @@ class PermissionRequest(models.Model):
     status = models.CharField(max_length=20, choices=[("pending", "Pending"), ("approved", "Approved"), ("denied", "Denied")], default="pending")
     request_date = models.DateTimeField(auto_now_add=True)
     response_date = models.DateTimeField(null=True, blank=True)
+    edit_permission = models.BooleanField(default=False)
 
-    def __str__(self):
-        return f"Request from {self.doctor.username} to access {self.patient.username}'s record"
-
-
+    class Meta:
+        constraints = [
+            models.UniqueConstraint(
+                fields=["doctor", "medical_record"],
+                condition=Q(status="pending"),
+                name="unique_pending_request_per_doctor_and_record"
+            )
+        ]
