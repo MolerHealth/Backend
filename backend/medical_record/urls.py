@@ -6,6 +6,7 @@ from .views import (
     MedicalRecordSpecificVersionView,
     RequestPermissionView,
     RespondToPermissionRequestView,
+    DeletePermissionRequestsToPatientView
     
 )
 
@@ -16,5 +17,7 @@ urlpatterns = [
     path('medical-records/<int:pk>/version/<int:version_number>/', MedicalRecordSpecificVersionView.as_view(), name='medical-record-specific-version'),  # Retrieve a specific version by version number
     
     path('medical-record/request-permission/', RequestPermissionView.as_view(), name='request_permission'),
-    path('permission-request/respond/', RespondToPermissionRequestView.as_view(), name='respond_permission'),
+    path('medical-record/permission-request/respond/', RespondToPermissionRequestView.as_view(), name='respond_permission'),
+    
+     path('medical-record/delete-requests-to-patient/', DeletePermissionRequestsToPatientView.as_view(), name='delete_permission_requests_to_patient',),
 ]
