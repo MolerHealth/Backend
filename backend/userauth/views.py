@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.authtoken.models import Token
 from django.contrib.auth import authenticate
+from .utils import send_activation_email, checkOTPExpiration
 
 from .models import User, OTP, Doctor, Patient
 from .serializers import (
@@ -29,7 +30,7 @@ class RegistrationAPIView(generics.CreateAPIView):
         if serializer.is_valid():
             user = serializer.save()
             # Send activation email with OTP (asynchronously)
-            send_activation_email.delay(user.id)
+            send_activation_email(user)
             return Response(
                 {
                     "message": "User registered successfully!",
