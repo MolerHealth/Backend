@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import User, OTP, Doctor, Patient
+from django.contrib.auth import authenticate
 
 
 # Registration Serializer
@@ -50,6 +51,33 @@ class RegistrationSerializer(serializers.ModelSerializer):
 class LoginSerializer(serializers.Serializer):
     email = serializers.EmailField()
     password = serializers.CharField(write_only=True, style={'input_type': 'password'})
+
+    def validate(self, data):
+        email = data.get('email')
+        password = data.get('password')
+
+        if not email or not password:
+            raise serializers.ValidationError("Both email and password are required.")
+
+        # Check if the user exists
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            raise serializers.ValidationError("Invalid credentials.")
+
+        # Check if the user is active
+        if not user.is_active:
+            raise serializers.ValidationError("Account not verified. Please verify your email.")
+
+        # Authenticate the user (ensures the password is correct)
+        user = authenticate(username=email, password=password)
+        if not user:
+            raise serializers.ValidationError("Invalid credentials.")
+
+        # Add the user to the validated data
+        data['user'] = user
+        return data
+    
 
 
 # Email Verification Serializer
