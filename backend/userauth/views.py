@@ -93,7 +93,8 @@ class ResendVerifyEmailAPIView(APIView):
                 )
 
             # Resend the activation email
-            send_activation_email.delay(user.id)
+            # send_activation_email.delay(user.id)
+            send_activation_email(user)
             return Response(
                 {"message": "Verification email resent successfully!"},
                 status=status.HTTP_200_OK,

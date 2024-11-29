@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'corsheaders',
     # 'django_celery_results',
     'medical_record',
+    'messaging',
 ]
 
 MIDDLEWARE = [
