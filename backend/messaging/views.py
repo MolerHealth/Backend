@@ -6,12 +6,13 @@ from rest_framework.views import APIView
 from rest_framework import status
 from .models import Message
 from .serializers import MessageSerializer
+from django.db import models
 
 User = get_user_model()
 
 class SendMessageView(APIView):
     permission_classes = [IsAuthenticated]
-
+    
     def post(self, request):
         sender = request.user
         recipient_email = request.data.get('recipient_email')
@@ -33,10 +34,6 @@ class SendMessageView(APIView):
             return Response({"error": "Patients cannot send messages to other patients."},
                             status=status.HTTP_403_FORBIDDEN)
 
-        # Restrict doctor-to-doctor messaging (optional, if needed)
-        if sender.is_doctor and recipient.is_doctor:
-            return Response({"error": "Doctors cannot send messages to other doctors."},
-                            status=status.HTTP_403_FORBIDDEN)
 
         # Save the message
         message = Message.objects.create(
@@ -54,21 +51,41 @@ class MessageListView(APIView):
     def get(self, request, sender_email=None):
         user = request.user
 
-        # Base query: messages where the logged-in user is the recipient
-        messages = Message.objects.filter(recipient=user)
+        # Fetch all messages where the user is either the sender or the recipient
+        messages = Message.objects.filter(models.Q(recipient=user) | models.Q(sender=user))
 
         if sender_email:
             try:
                 # Filter messages further by sender email
                 sender = User.objects.get(email=sender_email)
-                messages = messages.filter(sender=sender)
+                messages = messages.filter(models.Q(sender=sender) | models.Q(recipient=sender))
             except User.DoesNotExist:
                 return Response({"error": "Sender with this email does not exist."},
                                 status=status.HTTP_404_NOT_FOUND)
 
-        # Serialize and return the messages
-        serializer = MessageSerializer(messages.order_by('-timestamp'), many=True)
-        return Response(serializer.data)
+        # Prepare the response data
+        response_data = {}
+
+        for message in messages.order_by('-timestamp'):
+            # Determine the key: use sender's email if the user is the recipient, otherwise use recipient's email
+            key_email = message.sender.email if message.recipient == user else message.recipient.email
+
+            # Determine the role of the sender
+            role = "doctor" if message.sender.is_doctor else "patient"
+
+            if key_email not in response_data:
+                response_data[key_email] = []
+
+            response_data[key_email].append({
+                "id": message.id,
+                "content": message.content,
+                "timestamp": message.timestamp,
+                "is_read": message.is_read,
+                "recipient": message.recipient.id,
+                "role": role
+            })
+
+        return Response(response_data)
 
 
 class MarkAsReadView(APIView):
