@@ -2,6 +2,9 @@
 from django.utils import timezone
 import string
 import random
+from django.conf import settings
+from .models import OTP
+from django.core.mail import send_mail
 
 
 def token_generator(size=6, chars=string.ascii_uppercase + string.digits):
@@ -19,3 +22,16 @@ def checkOTPExpiration(otp):
             return True
     else:
         return False
+    
+def send_activation_email(user):
+    otp = token_generator()
+
+    OTP.objects.create(user=user, otp=otp)
+
+    subject = 'Your OTP Code'
+    message = f'Your OTP code is {otp}. It will expire in 5 minutes.'
+    email_from = settings.EMAIL_HOST_USER
+    recipient_list = [user.email]
+    
+    # Send the email
+    send_mail(subject, message, email_from, recipient_list)
