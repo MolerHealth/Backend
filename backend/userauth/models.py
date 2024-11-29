@@ -15,7 +15,7 @@ class User(AbstractBaseUser, PermissionsMixin):
     profile_picture = models.ImageField(upload_to='profile_pics/', null=True, blank=True)
 
     # User roles
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=False)
     is_staff = models.BooleanField(default=False)
     is_superuser = models.BooleanField(default=False)
     is_doctor = models.BooleanField(default=False)  # Flag for doctor users
@@ -81,5 +81,8 @@ class OTP(models.Model):
     otp = models.CharField(max_length=6, null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True, null=True)
 
+    def is_expired(self):
+        return (timezone.now() - self.created_at).total_seconds() > 300  # OTP expires in 5 minutes
+
     def __str__(self):
-        return f"OTP for {self.user.email} - {self.otp}"
+        return f"{self.user.email} - {self.otp}"
